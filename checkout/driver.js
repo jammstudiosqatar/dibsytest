@@ -1,30 +1,27 @@
 function convert(x) {
-  if (x instanceof Date) {
-    return x.toISOString();
-  } else if (Array.isArray(x)) {
-    return x.map(convert);
-  } else {
-    return x;
-  }
+  if (x instanceof Date) return x.toISOString();
+  if (Array.isArray(x)) return x.map(convert);
+  return x;
 }
 
 window.addEventListener("message", async function (event) {
-  // Guard: ignore unrelated messages
-  if (!event || !event.data || !event.data.key) return;
+  const { data } = event || {};
+  if (!data) return;
 
-  const { key, params } = event.data;
+  // Glide sends { key, params }
+  const { key, params } = data;
+  if (!key || !Array.isArray(params)) return;
 
   let result;
   let error;
 
   try {
-    // Glide passes params already in the { value: ... } shape
-    result = await window.function(...(params || []));
+    result = await window.function(...params);
   } catch (e) {
     result = undefined;
     try {
       error = e.toString();
-    } catch (err) {
+    } catch {
       error = "Exception can't be stringified.";
     }
   }
@@ -33,7 +30,6 @@ window.addEventListener("message", async function (event) {
 
   if (result !== undefined) {
     result = convert(result);
-    // Your column returns a string (data URI), so string is correct here
     response.result = { type: "string", value: result };
   }
 
@@ -41,7 +37,5 @@ window.addEventListener("message", async function (event) {
     response.error = error;
   }
 
-  if (event.source && event.source.postMessage) {
-    event.source.postMessage(response, "*");
-  }
+  event.source.postMessage(response, "*");
 });
