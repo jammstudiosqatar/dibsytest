@@ -1,0 +1,53 @@
+{
+  "name": "Dibsy Checkout Button",
+  "description": "Generates a secure Pay button that calls a Make.com webhook.",
+  "author": "Jamm Studios",
+  "params": [
+    {
+      "name": "webhookUrl",
+      "displayName": "Make Webhook URL",
+      "type": "string",
+      "description": "The URL of your Make.com Custom Webhook"
+    },
+    {
+      "name": "amount",
+      "displayName": "Amount",
+      "type": "number",
+      "description": "The total amount to charge"
+    },
+    {
+      "name": "currency",
+      "displayName": "Currency",
+      "type": "string",
+      "defaultValue": "QAR"
+    },
+    {
+      "name": "description",
+      "displayName": "Description",
+      "type": "string",
+      "description": "Order ID or Item Name"
+    },
+    {
+      "name": "redirectUrl",
+      "displayName": "Success Redirect URL",
+      "type": "string",
+      "description": "Where to go AFTER payment (e.g. your app link)"
+    },
+    {
+      "name": "buttonText",
+      "displayName": "Button Text",
+      "type": "string",
+      "defaultValue": "Pay Now"
+    },
+    {
+      "name": "buttonColor",
+      "displayName": "Button Color (Hex)",
+      "type": "string",
+      "defaultValue": "#000000"
+    }
+  ],
+  "result": {
+    "type": "string",
+    "displayName": "Button Code (Data URI)"
+  }
+}
