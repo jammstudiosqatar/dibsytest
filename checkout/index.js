@@ -1,9 +1,12 @@
 window.function = function (webhookUrl, amount, currency, description, redirectUrl, buttonText, buttonColor) {
 
-  // SAFETY CHECK: If the user hasn't connected columns yet, stop here to prevent crashing.
-  if (webhookUrl === undefined) return undefined;
+  // 1. Defensively handle missing inputs (avoid returning undefined which causes spinner)
+  if (webhookUrl === undefined) {
+    // This state happens when the column is first created or manifest is loading
+    return "data:text/html;charset=utf-8," + encodeURIComponent("<div>Loading configuration...</div>");
+  }
 
-  // 1. Get values safely (handling undefined/null inputs)
+  // 2. Get values safely
   var webhook = webhookUrl.value ?? "";
   var amt = (amount && amount.value) ? amount.value : 0;
   var curr = (currency && currency.value) ? currency.value : "QAR";
@@ -12,13 +15,19 @@ window.function = function (webhookUrl, amount, currency, description, redirectU
   var btnTxt = (buttonText && buttonText.value) ? buttonText.value : "Pay Now";
   var btnClr = (buttonColor && buttonColor.value) ? buttonColor.value : "#000000";
 
-  // 2. If the Webhook URL is missing, return a placeholder button or empty string
+  // 3. Validation
   if (webhook === "") {
-    // Optional: Return a disabled button saying "Setup Required"
-    return "data:text/html;charset=utf-8," + encodeURIComponent("<div>Please connect Webhook URL</div>");
+    return "data:text/html;charset=utf-8," + encodeURIComponent("<div style='font-family:sans-serif; padding:10px;'>⚠️ Please set Webhook URL</div>");
   }
 
-  // 3. Construct the HTML
+  // 4. Safe Data Insertion
+  // We use JSON.stringify to safely escape quotes/special characters for the generated JS
+  // values that will be inserted into the HTML string.
+  var safeDesc = JSON.stringify(desc);
+  var safeCurr = JSON.stringify(curr);
+  var safeRedirect = JSON.stringify(redirect);
+
+  // 5. Construct the HTML
   var html = `
 <!DOCTYPE html>
 <html>
@@ -43,25 +52,32 @@ window.function = function (webhookUrl, amount, currency, description, redirectU
       align-items: center;
       box-shadow: 0 4px 6px rgba(0,0,0,0.1);
       text-decoration: none;
+      -webkit-appearance: none;
     }
     #pay-btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .spinner { display: none; margin-left: 10px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .error-msg { color: red; font-size: 12px; margin-top: 5px; text-align: center; display: none; }
   </style>
 </head>
 <body>
-  <button id="pay-btn" onclick="initiateCheckout()">
-    <span id="btn-text">${btnTxt}</span>
-    <div class="spinner" id="spinner"></div>
-  </button>
+  <div style="width:100%">
+    <button id="pay-btn" onclick="initiateCheckout()">
+      <span id="btn-text">${btnTxt}</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
+    <div id="error-log" class="error-msg"></div>
+  </div>
 
   <script>
     async function initiateCheckout() {
       var btn = document.getElementById('pay-btn');
       var spinner = document.getElementById('spinner');
       var btnText = document.getElementById('btn-text');
+      var errLog = document.getElementById('error-log');
 
-      // UI Loading State
+      // Reset
+      errLog.style.display = 'none';
       btn.disabled = true;
       spinner.style.display = 'block';
       btnText.innerText = "Securing Payment...";
@@ -72,42 +88,33 @@ window.function = function (webhookUrl, amount, currency, description, redirectU
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             amount: ${amt},
-            currency: '${curr}',
-            description: '${desc}',
-            redirectUrl: '${redirect}'
+            currency: ${safeCurr},
+            description: ${safeDesc},
+            redirectUrl: ${safeRedirect}
           })
         });
 
         if (response.ok) {
           const checkoutUrl = await response.text();
-          // Remove quotes if they exist in the response
+          // Clean URL
           const cleanUrl = checkoutUrl.replace(/^["']|["']$/g, '').trim();
           
           if (cleanUrl.startsWith('http')) {
             window.top.location.href = cleanUrl; 
           } else {
-            console.error("Invalid URL:", cleanUrl);
-            alert('Error: Gateway returned invalid URL');
-            resetBtn();
+            throw new Error("Invalid URL received from Payment Gateway");
           }
         } else {
-          alert('Payment Gateway Error: ' + response.status);
-          resetBtn();
+          throw new Error("Gateway Error: " + response.status);
         }
       } catch (error) {
         console.error(error);
-        alert('Connection failed.');
-        resetBtn();
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        btnText.innerText = "${btnTxt}";
+        errLog.innerText = "Connection Failed. Try again.";
+        errLog.style.display = 'block';
       }
-    }
-
-    function resetBtn() {
-      var btn = document.getElementById('pay-btn');
-      var spinner = document.getElementById('spinner');
-      var btnText = document.getElementById('btn-text');
-      btn.disabled = false;
-      spinner.style.display = 'none';
-      btnText.innerText = "${btnTxt}";
     }
   </script>
 </body>
