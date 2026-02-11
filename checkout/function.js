@@ -1,115 +1,130 @@
-window.function = function (webhookUrl, amount, currency, description, redirectUrl, buttonText, buttonColor) {
-  // When Glide is still wiring up the column, inputs can be undefined
-  if (webhookUrl === undefined) {
-    return "data:text/html;charset=utf-8," + encodeURIComponent("<div style='font-family:sans-serif;padding:10px;'>Loading configuration…</div>");
-  }
+window.function = function (
+  webhookUrl,
+  amount,
+  currency,
+  description,
+  redirectUrl,
+  buttonText,
+  buttonColor
+) {
+  const getVal = (p, def) => {
+    if (p === null || p === undefined) return def;
+    if (typeof p === "object" && "value" in p) return p.value ?? def;
+    return p ?? def;
+  };
 
-  // Extract values safely
-  var webhook = webhookUrl.value ?? "";
-  var amt = Number((amount && amount.value) ? amount.value : 0);
-  var curr = (currency && currency.value) ? currency.value : "QAR";
-  var desc = (description && description.value) ? description.value : "Order";
-  var redirect = (redirectUrl && redirectUrl.value) ? redirectUrl.value : "";
-  var btnTxt = (buttonText && buttonText.value) ? buttonText.value : "Pay Now";
-  var btnClr = (buttonColor && buttonColor.value) ? buttonColor.value : "#000000";
+  const webhook = String(getVal(webhookUrl, "")).trim();
+  const amtRaw = getVal(amount, 0);
+  const amt = Number(amtRaw);
+  const curr = String(getVal(currency, "QAR")).trim();
+  const desc = String(getVal(description, "Order")).trim();
+  let redirect = String(getVal(redirectUrl, "")).trim();
+  const btnTxt = String(getVal(buttonText, "Pay Now")).trim();
+  const btnClr = String(getVal(buttonColor, "#000000")).trim();
 
+  // If they enter "www.site.com", Dibsy/redirects usually want a full URL
+  if (redirect && !/^https?:\/\//i.test(redirect)) redirect = "https://" + redirect;
+
+  // Always return HTML (never undefined) so Glide doesn't spin forever.
   if (!webhook) {
-    return "data:text/html;charset=utf-8," + encodeURIComponent("<div style='font-family:sans-serif; padding:10px;'>⚠️ Please set Webhook URL</div>");
+    return (
+      "data:text/html;charset=utf-8," +
+      encodeURIComponent(
+        `<div style="font-family:system-ui;padding:10px">⚠️ Please set <b>Make Webhook URL</b></div>`
+      )
+    );
   }
 
-  // Escape values for safe injection into JS
-  var safeDesc = JSON.stringify(desc);
-  var safeCurr = JSON.stringify(curr);
-  var safeRedirect = JSON.stringify(redirect);
+  const safeCurr = JSON.stringify(curr);
+  const safeDesc = JSON.stringify(desc);
+  const safeRedirect = JSON.stringify(redirect);
 
-  var html = `
-<!DOCTYPE html>
+  const html = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: transparent; }
-    #pay-btn {
-      background-color: ${btnClr};
-      color: white;
-      padding: 12px 24px;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      width: 100%;
-      transition: opacity 0.2s;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      -webkit-appearance: none;
+    body { margin:0; padding:0; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: transparent; }
+    button {
+      width:100%;
+      background:${btnClr};
+      color:#fff;
+      padding:12px 16px;
+      border:0;
+      border-radius:10px;
+      font-size:16px;
+      font-weight:600;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
     }
-    #pay-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .spinner { display: none; margin-left: 10px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .error-msg { color: red; font-size: 12px; margin-top: 6px; text-align: center; display: none; }
+    button:disabled { opacity:.65; cursor:not-allowed; }
+    .spinner {
+      width:14px; height:14px;
+      border:2px solid rgba(255,255,255,.35);
+      border-top-color:#fff;
+      border-radius:50%;
+      display:none;
+      animation:spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .err { color:#b00020; font-size:12px; margin-top:8px; display:none; text-align:center; }
   </style>
 </head>
 <body>
-  <div style="width:100%">
-    <button id="pay-btn" onclick="initiateCheckout()">
-      <span id="btn-text">${btnTxt}</span>
-      <div class="spinner" id="spinner"></div>
-    </button>
-    <div id="error-log" class="error-msg"></div>
-  </div>
+  <button id="payBtn" type="button" onclick="go()">
+    <span id="txt">${btnTxt}</span>
+    <span class="spinner" id="sp"></span>
+  </button>
+  <div class="err" id="err"></div>
 
-  <script>
-    async function initiateCheckout() {
-      var btn = document.getElementById('pay-btn');
-      var spinner = document.getElementById('spinner');
-      var btnText = document.getElementById('btn-text');
-      var errLog = document.getElementById('error-log');
+<script>
+async function go() {
+  const btn = document.getElementById('payBtn');
+  const txt = document.getElementById('txt');
+  const sp  = document.getElementById('sp');
+  const err = document.getElementById('err');
 
-      errLog.style.display = 'none';
-      btn.disabled = true;
-      spinner.style.display = 'block';
-      btnText.innerText = "Securing Payment...";
+  err.style.display = 'none';
+  btn.disabled = true;
+  sp.style.display = 'inline-block';
+  txt.textContent = 'Securing payment…';
 
-      try {
-        const response = await fetch('${webhook}', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: ${amt},
-            currency: ${safeCurr},
-            description: ${safeDesc},
-            redirectUrl: ${safeRedirect}
-          })
-        });
+  try {
+    const res = await fetch(${JSON.stringify(webhook)}, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: ${isFinite(amt) ? amt : 0},
+        currency: ${safeCurr},
+        description: ${safeDesc},
+        redirectUrl: ${safeRedirect}
+      })
+    });
 
-        if (!response.ok) throw new Error("Gateway Error: " + response.status);
+    const text = await res.text();
+    if (!res.ok) throw new Error('Gateway error: ' + res.status + ' ' + text);
 
-        const checkoutUrl = await response.text();
-        const cleanUrl = checkoutUrl.replace(/^["']|["']$/g, '').trim();
+    const cleanUrl = String(text).replace(/^["']|["']$/g,'').trim();
+    if (!/^https?:\\/\\//i.test(cleanUrl)) throw new Error('Invalid URL returned: ' + cleanUrl);
 
-        if (cleanUrl.startsWith('http')) {
-          window.top.location.href = cleanUrl;
-        } else {
-          throw new Error("Invalid URL received");
-        }
-
-      } catch (error) {
-        console.error(error);
-        btn.disabled = false;
-        spinner.style.display = 'none';
-        btnText.innerText = "${btnTxt}";
-        errLog.innerText = "Connection failed. Try again.";
-        errLog.style.display = 'block';
-      }
-    }
-  </script>
+    // Break out of the iframe and send the user to checkout
+    window.top.location.href = cleanUrl;
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false;
+    sp.style.display = 'none';
+    txt.textContent = ${JSON.stringify(btnTxt)};
+    err.textContent = 'Connection failed. Please try again.';
+    err.style.display = 'block';
+  }
+}
+</script>
 </body>
-</html>
-  `;
+</html>`;
 
   return "data:text/html;charset=utf-8," + encodeURIComponent(html);
 };
