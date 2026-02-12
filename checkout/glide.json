@@ -3,45 +3,16 @@
   "description": "Generates a Pay button that calls a Make.com webhook and redirects to the returned checkout URL.",
   "author": "Jamm Studios",
   "params": [
-    {
-      "name": "webhookUrl",
-      "displayName": "Make Webhook URL",
-      "type": "string"
-    },
-    {
-      "name": "amount",
-      "displayName": "Amount",
-      "type": "number"
-    },
-    {
-      "name": "currency",
-      "displayName": "Currency",
-      "type": "string",
-      "defaultValue": "QAR"
-    },
-    {
-      "name": "description",
-      "displayName": "Description",
-      "type": "string",
-      "defaultValue": "Order"
-    },
-    {
-      "name": "redirectUrl",
-      "displayName": "Success Redirect URL",
-      "type": "string"
-    },
-    {
-      "name": "buttonText",
-      "displayName": "Button Text",
-      "type": "string",
-      "defaultValue": "Pay Now"
-    },
-    {
-      "name": "buttonColor",
-      "displayName": "Button Color (Hex)",
-      "type": "string",
-      "defaultValue": "#000000"
-    }
+    { "name": "webhookUrl", "displayName": "Make Webhook URL", "type": "string" },
+    { "name": "amount", "displayName": "Amount", "type": "number" },
+    { "name": "currency", "displayName": "Currency", "type": "string", "defaultValue": "QAR" },
+    { "name": "description", "displayName": "Description", "type": "string", "defaultValue": "Order" },
+    { "name": "redirectUrl", "displayName": "Success Redirect URL", "type": "string" },
+    { "name": "buttonText", "displayName": "Button Text", "type": "string", "defaultValue": "Pay Now" },
+    { "name": "buttonColor", "displayName": "Button Color (Hex)", "type": "string", "defaultValue": "#000000" },
+    { "name": "receiptNo", "displayName": "Receipt No", "type": "string" },
+    { "name": "saleRowID", "displayName": "Sale Row ID", "type": "string" },
+    { "name": "userID", "displayName": "User ID", "type": "string" }
   ],
   "result": {
     "type": "string",
